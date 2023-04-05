@@ -19,7 +19,7 @@ $key = hash('sha256', $secret_key);
 $iv = substr(hash('sha256', $secret_iv), 0, 16);
 
 // Check if the form has been submitted
-if (isset($_POST['submit'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     // Get the value from the input field
     $value = $_POST['value'];
 
@@ -30,7 +30,14 @@ if (isset($_POST['submit'])) {
     // Store the encrypted value in the database
     $stmt = $db->prepare("INSERT INTO my_table (value) VALUES (?)");
     $stmt->bind_param("s", $encrypted_value);
-    $stmt->execute();
+
+    if ($stmt->execute()) {
+        // Redirect the user to the same page to avoid form resubmission
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    } else {
+        die("Error storing value in database.");
+    }
 }
 
 // Get the values from the database
