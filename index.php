@@ -15,7 +15,7 @@ if ($conn->connect_error) {
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text'])) {
   $text = $_POST['text'];
-  $encrypted_text = base64_encode(openssl_encrypt($text, "AES-128-ECB", "encryption_key"));
+  $encrypted_text = base64_encode(openssl_encrypt($text, "AES-128-CBC", "encryption_key"));
   $sql = "INSERT INTO encrypted_text (text) VALUES ('$encrypted_text')";
   $result = $conn->query($sql);
   
