@@ -1,98 +1,56 @@
 <?php
-// Set up encryption key and initialization vector
-$encryption_key = 'my-secret-key-123';
-$iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+// Connect to the database
+$db = new mysqli('localhost', 'root', '', 'encrypt');
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text'])) {
-  // Get text from form submission
-  $text = $_POST['text'];
-  
-  // Encrypt the text using AES-256-CBC
-  $encrypted_text = openssl_encrypt($text, 'aes-256-cbc', $encryption_key, 0, $iv);
-  
-  // Save the encrypted text and initialization vector to the database
-  $servername = 'localhost';
-  $username = 'root';
-  $password = '';
-  $dbname = 'encrypt';
-  
-  // Create connection
-  $conn = new mysqli($servername, $username, $password, $dbname);
-
-  // Check connection
-  if ($conn->connect_error) {
-    die('Connection failed: ' . $conn->connect_error);
-  }
-
-  // Encode encrypted text and initialization vector as base64
-  $encrypted_text = base64_encode($encrypted_text);
-  $iv = base64_encode(str_pad($iv, 16, "\0"));
-
-  // Insert encrypted text and initialization vector into database
-  $sql = "INSERT INTO encrypted_text (encrypted_data, iv) VALUES ('$encrypted_text', '$iv')";
-  $result = $conn->query($sql);
-
-  // Check if insert was successful
-  if (!$result) {
-    die('Error inserting encrypted text into database: ' . $conn->error);
-  } else {
-    echo 'Encrypted text added to database.';
-  }
-
-  // Close connection
-  $conn->close();
-  
-  // Redirect to prevent form resubmission
-  header('Location: ' . $_SERVER['REQUEST_URI']);
-  exit;
+// Check for errors
+if ($db->connect_error) {
+    die("Connection failed: " . $db->connect_error);
 }
 
-// Display input form
-echo '<form method="post">';
-echo '<input type="text" name="text" placeholder="Enter text to encrypt">';
-echo '<input type="submit" value="Encrypt and Add to Database">';
-echo '</form>';
+// Set the encryption method
+$encryption_method = "AES-256-CBC";
 
-// Retrieve encrypted text from database and decrypt
-$servername = 'localhost';
-$username = 'root';
-$password = '';
-$dbname = 'encrypt';
+// Set the secret key and iv
+$secret_key = 'my_secret_key';
+$secret_iv = 'my_secret_iv';
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+// Hash the secret key and iv
+$key = hash('sha256', $secret_key);
+$iv = substr(hash('sha256', $secret_iv), 0, 16);
 
-// Check connection
-if ($conn->connect_error) {
-  die('Connection failed: ' . $conn->connect_error);
+// Check if the form has been submitted
+if (isset($_POST['submit'])) {
+    // Get the value from the input field
+    $value = $_POST['value'];
+
+    // Encrypt the value
+    $encrypted_value = openssl_encrypt($value, $encryption_method, $key, 0, $iv);
+    $encrypted_value = base64_encode($encrypted_value);
+
+    // Store the encrypted value in the database
+    $stmt = $db->prepare("INSERT INTO my_table (value) VALUES (?)");
+    $stmt->bind_param("s", $encrypted_value);
+    $stmt->execute();
 }
 
-// Select all encrypted data and initialization vectors from database
-$sql = "SELECT encrypted_data, iv FROM encrypted_text";
-$result = $conn->query($sql);
+// Get the values from the database
+$result = $db->query("SELECT * FROM my_table");
 
-// Check if any encrypted data was found
-if ($result->num_rows > 0) {
-  // Decrypt each row and display it
-  while($row = $result->fetch_assoc()) {
-    // Decode base64 encoded encrypted data and initialization vector
-    $encrypted_text = base64_decode($row['encrypted_data']);
-    $iv = base64_decode($row['iv']);
+// Display the values
+while ($row = $result->fetch_assoc()) {
+    // Get the encrypted value from the database
+    $encrypted_value = base64_decode($row['value']);
 
-    // Pad initialization vector with null bytes to be 16 bytes long
-    $iv = str_pad($iv, 16, "\0");
+    // Decrypt the value
+    $decrypted_value = openssl_decrypt($encrypted_value, $encryption_method, $key, 0, $iv);
 
-    // Decrypt the encrypted data using AES-256-CBC
-    $decrypted_text = openssl_decrypt($encrypted_text, 'aes-256-cbc', $encryption_key, 0, $iv);
-    
-    // Display decrypted text
-    echo "<p>$decrypted_text</p>";
-  }
-} else {
-  echo "No encrypted text found in database.";
+    // Display the decrypted value
+    echo "<p>" . htmlspecialchars($decrypted_value) . "</p>";
 }
-
-// Close connection
-$conn->close();
 ?>
+
+<!-- The HTML form -->
+<form method="post">
+    <input type="text" name="value">
+    <input type="submit" name="submit" value="Submit">
+</form>
